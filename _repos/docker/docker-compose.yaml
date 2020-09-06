@@ -1,0 +1,241 @@
+version: '3'
+services:
+  # HomeAssistant
+  homeass_main:
+    container_name: "home_assistant"
+    image: homeassistant/home-assistant:latest
+    volumes:
+      # Local path where your home assistant config will be stored
+      - /home/pi/ha/hass_main_conf:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /home/pi/ha/shared:/shared
+      - /dev/serial/by-id/:/dev/serial/by-id/
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    depends_on:
+      # MariaDB is optional (only if you would like to use a different database for HA).
+      - mariadb
+      # Deconz is optional (only if you use the deconz Zigbee hub).
+      - deconz
+#    user: "${LOCAL_USER}:${LOCAL_USER}"
+    environment:
+      - PUID=1000
+      - PGID=995
+      - TZ=Europe/Oslo
+
+  # MariaDb
+  mariadb:
+    image: jsurf/rpi-mariadb
+    #image: arm64v8/mariadb:latest
+    #image: webhippie/mariadb 
+    container_name: mariadb
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_DATABASE: ha_db
+      MYSQL_USER: homeassistant
+      MYSQL_PASSWORD: "${HA_MYSQL_PASSWORD}"
+    user: "${LOCAL_USER}:${LOCAL_USER}"
+    volumes:
+      # Local path where the database will be stored.
+      - /home/pi/ha/mariadb/data:/var/lib/mysql
+      - /home/pi/ha/mariadb/conf:/etc/mysql/conf.d
+      - /etc/localtime:/etc/localtime:ro
+      - /home/pi/ha/mariadb/bak:/var/lib/backup
+    network_mode: host
+    #ports:
+    # - "3306:3306"
+
+  # Deconz
+  deconz:
+    container_name: deconz
+    image: marthoc/deconz
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      # You can access Deconz at this port
+      DECONZ_WEB_PORT: 8080
+      DECONZ_WS_PORT: 8088
+      # Set VNC_MODE to 0 to disable it completely
+      DECONZ_VNC_MODE: 0
+      DECONZ_VNC_PORT: 5900
+      DECONZ_UPNP: 0
+      DECONZ_VNC_PASSWORD: "${VNC_PASSWORD}"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      # Replace <local path> with a path where all deconz config will be stored.
+      - /home/pi/ha/decons_conf:/root/.local/share/dresden-elektronik/deCONZ
+    devices:
+      - /dev/ttyACM2:/dev/ttyACM0
+
+  # Node-RED
+  nodered:
+    build:
+      context: ./services/nodered/
+    container_name: nodered
+    image: nodered/node-red
+    ports:
+      - "1880:1880"
+    volumes:
+      # Local path where all Node-RED config will be stored.
+      - /home/pi/ha/nodered_conf:/data
+    depends_on:
+      - homeass_main
+    environment:
+      TZ: "Europe/Oslo"
+    user: "${LOCAL_USER}:${LOCAL_USER}"
+    restart: unless-stopped
+
+  # AppDaemon
+  appdaemon:
+    container_name: appdaemon
+    restart: unless-stopped
+    image: appdaemon:latest
+    environment:
+      HA_URL: "http://${HOST_IP}:8123"
+      TOKEN: "${HA_APPDAEMON_KEY}"
+      DASH_URL: "http://${HOST_IP}:5050"
+#    ports:
+#      - "5050:5050"
+    network_mode: host
+    volumes:
+      # Set which local directory will contain all your app daemon configuration
+      - /home/pi/ha/AppDaemon_conf:/conf
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      - homeass_main
+    user: "${LOCAL_USER}:${LOCAL_USER}"
+
+  # Other services
+  mosquitto:
+    image: eclipse-mosquitto
+    hostname: mosquitto
+    container_name: mosquitto
+    restart: always
+    #expose:
+    #  - "1883"
+    #  - "9001"
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - /home/pi/ha/mosquitto_conf:/mosquitto
+#    networks:
+#      - default
+
+  drupal:
+    image: drupal
+    container_name: drupal
+    ports:
+      - 8081:80
+    volumes:
+#      - /home/pi/ha/drupal_conf:/var/www/html
+      - /home/pi/ha/drupal_conf/modules:/var/www/html/modules
+      - /home/pi/ha/drupal_conf/profiles:/var/www/html/profiles
+      - /home/pi/ha/drupal_conf/themes:/var/www/html/themes
+#      # this takes advantage of the feature in Docker that a new anonymous
+#      # volume (which is what we're creating here) will be initialized with the
+#      # existing content of the image at the same location
+      - /home/pi/ha/drupal_conf/sites:/var/www/html/sites
+    environment:
+      - MYSQL_DATABASE=drupal
+      - MYSQL_USER=homeassistant
+      - MYSQL_PASSWORD=1234
+      - MYSQL_ROOT_PASSWORD=1234
+    restart: always
+    privileged: true
+    depends_on: 
+      - mariadb
+
+  configurator:
+    container_name: configurator
+    image: "causticlab/hass-configurator-docker:arm"
+    restart: always
+    ports:
+      - "3218:3218/tcp"
+    volumes:
+      - /home/pi/ha/configurator_conf:/config
+      - /home/pi/ha/hass_main_conf:/hass-config
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - BASEPATH=/hass-config
+      - ENFORCE_BASEPATH=true
+      - PUID=1000
+      - PGID=995
+      - TZ=Europe/Oslo
+    
+#  vpnserver:
+#    image: netzfisch/rpi-vpn-server:latest
+#    environment:
+#      - HOSTNAME:"192.168.3.10"
+#      - VPN_USER:hass
+#      - VPN_PASSWORD:hass
+#      - VPN_HOSTDIR:"/mnt/configs/vpn"
+#    cap_add:
+#      - NET_ADMIN
+#    network_mode: host
+#    ports:
+#      - 500:500
+#      - 4500:4500
+#    volumes:
+#      - /home/pi/ha/vpn_conf:/mnt
+#    restart: unless-stopped
+
+  portainer:
+    image: portainer/portainer
+    command: -H unix:///var/run/docker.sock
+    restart: always
+    ports:
+      - 9000:9000
+      - 8000:8000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/pi/ha/portainer_conf:/data
+      
+  ozwd:
+    image: openzwave/ozwdaemon:latest
+    container_name: "ozwd"
+    security_opt:
+      - seccomp:unconfined
+    devices:
+      - /dev/ttyACM0:/dev/ttyUSB0
+    volumes:
+      - /home/pi/ha/ozw_config:/opt/ozw/config
+    ports:
+      - "1983:1983"
+    environment:
+      MQTT_SERVER: "192.168.1.3"
+      MQTT_USERNAME: ""
+      MQTT_PASSWORD: ""
+      USB_PATH: "/dev/ttyUSB0"
+      OZW_NETWORK_KEY: "0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00"
+    restart: unless-stopped
+
+  plex:
+    image: linuxserver/plex
+    container_name: plex
+    #network_mode: host
+    ports:
+      - "32400:32400"
+      - "1900:1900"
+      - "3005:3005"
+      - "5353:5353"
+      - "8324:8324"
+      - "32410:32410"
+      - "32412:32412"
+      - "32413:32413"
+      - "32414:32414"
+      - "32469:32469"
+    environment:
+      - PUID=1000
+      - PGID=995
+      - VERSION=docker
+      - UMASK_SET=022 #optional
+      - PLEX_CLAIM= #optional
+    volumes:
+      - /home/pi/ha/plex_conf:/config
+      - /home/pi/ha/mount/tv:/tv
+      - /home/pi/ha/mount/movies:/movies
+    restart: unless-stopped
