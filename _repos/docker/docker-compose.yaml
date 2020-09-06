@@ -142,8 +142,8 @@ services:
     environment:
       - MYSQL_DATABASE=drupal
       - MYSQL_USER=homeassistant
-      - MYSQL_PASSWORD=1234
-      - MYSQL_ROOT_PASSWORD=1234
+      - MYSQL_PASSWORD= "${MYSQL_ROOT_PASSWORD}"
+      - MYSQL_ROOT_PASSWORD= "${MYSQL_ROOT_PASSWORD}"
     restart: always
     privileged: true
     depends_on: 
