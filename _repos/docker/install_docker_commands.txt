@@ -1,3 +1,12 @@
+#Allow ssh in Raspbian
+#Start a ssh client and enter the pi directory
+
+#git install
+sudo apt update
+sudo apt install git
+
+#clone repo.
+git clone https://github.com/TomTorger/ha.git
 
 Samba install:
 sudo apt-get update
