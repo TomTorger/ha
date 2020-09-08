@@ -202,7 +202,7 @@ services:
     devices:
       - /dev/ttyACM0:/dev/ttyUSB0
     volumes:
-      - /home/pi/ha/ozw_config:/opt/ozw/config
+      - /home/pi/ha/ozw_conf:/opt/ozw/config
     ports:
       - "1983:1983"
     environment:
