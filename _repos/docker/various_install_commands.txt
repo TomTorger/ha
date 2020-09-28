@@ -6,6 +6,7 @@ sudo apt update
 sudo apt install git
 
 #clone repo.
+cd /home/pi
 git clone https://github.com/TomTorger/ha.git
 
 Samba install:
