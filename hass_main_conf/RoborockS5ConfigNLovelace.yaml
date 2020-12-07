@@ -1,0 +1,256 @@
+#configuration and lovelace mark-up for Roborock s5. I think it works for S6 as well :-)
+
+It relies on the following integrations/custom cards:
+#Map extractor. Can be installed via HACS, but must be added as a custom repository. It allows for the creation of a camera which extracts the mobile app map
+#https://github.com/PiotrMachowski/Home-Assistant-custom-components-Xiaomi-Cloud-Map-Extractor
+#This had to be added as a custom integration in HACS
+#
+#Map card. The MAP card which can consume the camera to provide calibration and a read-time display.
+#https://github.com/PiotrMachowski/lovelace-xiaomi-vacuum-map-card
+#
+#xiaomi_mii integration:
+#This comes with HA, however, an access token has to be created following this procedure: https://www.home-assistant.io/integrations/xiaomi_miio/#retrieving-the-access-token
+#
+#A simple card for the vacuum:
+#https://github.com/benct/lovelace-xiaomi-vacuum-card
+
+#General:
+#The integration uses a vacuum native coordinate system. "One-touch" commands for cleaning certain areas or go to a specific spot (trashcan) require coordinates in this format. 
+#These can be retrieved by setting the "debug" value to "true" in the lovelace configuration of the map card.
+
+#Configuration:
+    
+#extracts the map of the mobile app as a camera
+camera:
+  - platform: xiaomi_cloud_map_extractor #Map
+    host: !secret xiaomi_vacuum_host
+    token: !secret xiaomi_vacuum_token
+    username: !secret xiaomi_cloud_username
+    password: !secret xiaomi_cloud_password
+    country: "de"
+    name: "Schnupi"
+    scan_interval: 5
+    auto_update: true
+    colors:
+      color_map_outside: [255, 255, 255]
+      color_path: [200, 0, 0]
+    draw:
+      - charger
+      - path
+      - goto_path
+      - predicted_path
+      - no_go_zones
+      - no_mopping_zones
+      - vacuum_position
+      - virtual_walls
+      - zones
+    map_transformation:
+      scale: 2
+      trim:
+        top: 22
+        bottom: 25
+        left: 26
+        right: 25
+    attributes:
+      - calibration_points
+    sizes:
+      charger_radius: 4
+      vacuum_radius: 6.5
+    
+vacuum:
+  - platform: xiaomi_miio
+    host: !secret xiaomi_vacuum_host
+    token: !secret xiaomi_vacuum_token
+    name: Schnupi
+    
+#Lovelace yaml
+title: Home
+views:
+  - title: Vacuum
+    icon: 'mdi:robot-vacuum'
+    panel: false
+    path: vacuum
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: glance
+            show_state: false
+            columns: 6
+            entities:          
+            - entity: vacuum.schnupi
+              icon: 'mdi:pot'
+              name: Kjøkken
+              tap_action: 
+                action: call-service
+                service: xiaomi_miio.vacuum_clean_zone
+                service_data:
+                  entity_id: vacuum.schnupi
+                  repeats: 1
+                  zone:
+                    - - 25447
+                      - 35628
+                      - 28436
+                      - 32911
+            - entity: vacuum.schnupi
+              icon: 'mdi:silverware-fork-knife'
+              name: Spisestue
+              tap_action: 
+                action: call-service
+                service: xiaomi_miio.vacuum_clean_zone
+                service_data:
+                  entity_id: vacuum.schnupi
+                  repeats: 1
+                  zone:
+                    - - 21148
+                      - 35628
+                      - 25488
+                      - 31913          
+            - entity: vacuum.schnupi
+              icon: 'mdi:shoe-print'
+              name: Gang
+              tap_action: 
+                action: call-service
+                service: xiaomi_miio.vacuum_clean_zone
+                service_data:
+                  entity_id: vacuum.schnupi
+                  repeats: 1
+                  zone:
+                    - - 25986
+                      - 32921
+                      - 30347
+                      - 30125          
+            - entity: vacuum.schnupi
+              icon: 'mdi:walk'
+              name: Passasje
+              tap_action: 
+                action: call-service
+                service: xiaomi_miio.vacuum_clean_zone
+                service_data:
+                  entity_id: vacuum.schnupi
+                  repeats: 1
+                  zone:
+                    - - 21148
+                      - 31963
+                      - 25651
+                      - 29845
+            - entity: vacuum.schnupi
+              icon: 'mdi:coffee-outline'
+              name: Stue
+              tap_action: 
+                action: call-service
+                service: xiaomi_miio.vacuum_clean_zone
+                service_data:
+                  entity_id: vacuum.schnupi
+                  repeats: 1
+                  zone:
+                    - - 24299
+                      - 29755
+                      - 28873
+                      - 25121          
+            - entity: vacuum.schnupi
+              icon: 'mdi:toy-brick'
+              name: Lekeplass
+              tap_action: 
+                action: call-service
+                service: xiaomi_miio.vacuum_clean_zone
+                service_data:
+                  entity_id: vacuum.schnupi
+                  repeats: 1
+                  zone:
+                    - - 21148
+                      - 29845
+                      - 24299
+                      - 24822
+            - entity: vacuum.schnupi
+              icon: 'mdi:square'
+              name: Stop
+              tap_action: 
+                action: call-service
+                service: vacuum.stop
+                service_data:
+                  entity_id: vacuum.schnupi
+            - entity: vacuum.schnupi
+              icon: 'mdi:trash-can-outline'
+              name: Gå til søpla
+              tap_action: 
+                action: call-service
+                service: vacuum.send_command
+                service_data:
+                  command: app_goto_target
+                  entity_id: vacuum.schnupi
+                  params:
+                    - 27074
+                    - 34200
+            - entity: vacuum.schnupi
+              icon: 'mdi:home-outline'
+              name: Gå til base
+              tap_action: 
+                action: call-service
+                service: vacuum.return_to_base
+                service_data:
+                  entity_id: vacuum.schnupi
+            - entity: vacuum.schnupi
+              icon: 'mdi:volume-low'
+              name: Stille
+              tap_action: 
+                action: call-service
+                service: vacuum.set_fan_speed
+                service_data:
+                  entity_id: vacuum.schnupi
+                  fan_speed: Silent
+            - entity: vacuum.schnupi
+              icon: 'mdi:volume-medium'
+              name: Normal
+              tap_action: 
+                action: call-service
+                service: vacuum.set_fan_speed
+                service_data:
+                  entity_id: vacuum.schnupi
+                  fan_speed: Standard
+            - entity: vacuum.schnupi
+              icon: 'mdi:volume-high'
+              name: Turbo
+              tap_action: 
+                action: call-service
+                service: vacuum.set_fan_speed
+                service_data:
+                  entity_id: vacuum.schnupi
+                  fan_speed: Turbo
+          - type: custom:xiaomi-vacuum-map-card
+            debug: true #Prints coordinates of a command
+            entity: vacuum.schnupi
+            ignore_zones_limit: true
+            #map_image: '/local/community/Stue.png'
+            map_camera: camera.schnupi
+            camera_calibration: true
+            #calibration_points:
+            #    - vacuum:
+            #        x: 26200
+            #        y: 26400
+            #      map:
+            #        x: 497
+            #        y: 924
+            #    - vacuum:
+            #        x: 22500
+            #        y: 26400
+            #      map:
+            #        x: 133
+            #        y: 924
+            #    - vacuum:
+            #        x: 22500
+            #        y: 34400
+            #      map:
+            #        x: 133
+            #        y: 123
+            zones:
+              - [[21148, 35628, 25488, 31913]] #spisestue
+              - [[25447,35628, 28436, 32911]] #kjøkken
+              - [[25986,32921, 30347, 30125]] #Gang
+              - [[21148,31963, 25651, 29845]] #Passasje
+              - [[24299,29755, 28873, 25121]] #TV stue
+              - [[21148,29845, 24299, 24822]] #Lekeplass
+          - type: custom:xiaomi-vacuum-card
+            entity: vacuum.schnupi
+            image: /local/community/vacuum.png
+            name: Schnupi
+            buttons: true
