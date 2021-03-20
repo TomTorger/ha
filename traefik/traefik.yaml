@@ -1,0 +1,37 @@
+api:
+  insecure: true
+  dashboard: true
+  debug: true
+
+log:
+  level: debug
+
+entryPoints:
+  http:
+    address: ":80"
+    http:
+      redirections:
+        entrypoint:
+          to: https
+          scheme: https
+  https:
+    address: ":443"
+        
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    watch: true
+#    network: traefik-proxy
+  file:
+    filename: /etc/traefik/dynamic.yaml
+
+certificatesResolvers:
+  lencrypt:
+    acme:      
+      email: your_email@somewhere.com
+      storage: "/etc/traefik/acme/acme.json"
+      tlsChallenge: true
+      httpChallenge:
+        entryPoint: https
+           

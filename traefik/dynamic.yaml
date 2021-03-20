@@ -1,0 +1,132 @@
+http:
+  routers:
+    ha:
+      rule: Host(`ha.yourdomain.com`)
+      entrypoints:
+        - https
+      service: ha
+      tls:
+        certresolver: lencrypt
+    traefik:
+      rule: Host(`traefik.yourdomain.com`)
+      entrypoints:
+        - https
+      middlewares:
+        - auth
+      service: traefik
+      tls:
+        certresolver: lencrypt
+    code:
+      rule: Host(`code.yourdomain.com`)
+      entrypoints:
+        - https
+      middlewares:
+        - auth
+      service: code
+      tls:
+        certresolver: lencrypt
+    plex:
+      rule: Host(`plex.yourdomain.com`)
+      entrypoints:
+        - https
+      middlewares:
+        - auth
+      service: plex
+      tls:
+        certresolver: lencrypt
+    nodered:
+      rule: Host(`nodered.yourdomain.com`)
+      entrypoints:
+        - https
+      middlewares:
+        - auth
+      service: nodered
+      tls:
+        certresolver: lencrypt
+    esphome:
+      rule: Host(`esphome.yourdomain.com`)
+      entrypoints:
+        - https
+      middlewares:
+        - auth
+      service: esphome
+      tls:
+        certresolver: lencrypt
+    synology:
+      rule: Host(`synology.yourdomain.com`)
+      entrypoints:
+        - https
+      service: synology
+      tls:
+        certresolver: lencrypt
+    lightstation:
+      rule: Host(`lightstation.yourdomain.com`)
+      entrypoints:
+        - https
+      middlewares:
+        - auth
+      service: lightstation
+      tls:
+        certresolver: lencrypt
+    wordpress:
+      rule: Host(`wordpress.yourdomain.com`)
+      entrypoints:
+        - https
+      middlewares:
+        - auth
+      service: wordpress
+      tls:
+        certresolver: lencrypt
+    ssh:
+      rule: Host(`ssh.yourdomain.com`)
+      entrypoints:
+        - https
+      middlewares:
+        - auth
+      service: ssh@docker
+      tls:
+        certresolver: lencrypt
+    portainer:
+      rule: Host(`portainer.yourdomain.com`)
+      entrypoints:
+        - https
+      middlewares:
+        - auth
+      service: portainer@docker
+      tls:
+        certresolver: lencrypt
+  middlewares:
+    auth:
+      basicAuth:
+        users:
+          - "user1:$apr1$...." #encrypted password
+          - "user2:$apr1$...."
+  services: #url based services
+    ha:
+      loadBalancer:
+        servers:
+          - url: http://192.168.1.nnn:8123
+    traefik:
+      loadBalancer:
+        servers:
+          - url: http://192.168.1.nnn:8081
+    code:
+      loadBalancer:
+        servers:
+          - url: http://192.168.1.nnn:8443
+    plex:
+      loadBalancer:
+        servers:
+          - url: http://192.168.1.nnn:32400
+    wordpress:
+      loadBalancer:
+        servers:
+          - url: http://192.168.1.nnn:8082
+    esphome:
+      loadBalancer:
+        servers:
+          - url: http://192.168.1.nnn:6052
+    nodered:
+      loadBalancer:
+        servers:
+          - url: http://192.168.1.nnn:1880

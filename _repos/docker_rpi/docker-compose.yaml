@@ -6,7 +6,7 @@ services:
     image: homeassistant/home-assistant:latest
     volumes:
       # Local path where your home assistant config will be stored
-      - /home/pi/ha/hass_main_conf:/config
+      - /home/pi/ha/hass:/config
       - /etc/localtime:/etc/localtime:ro
       - /home/pi/ha/shared:/shared
       - /dev/serial/by-id/:/dev/serial/by-id/
@@ -66,7 +66,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       # Replace <local path> with a path where all deconz config will be stored.
-      - /home/pi/ha/decons_conf:/root/.local/share/dresden-elektronik/deCONZ
+      - /home/pi/ha/deconz:/root/.local/share/dresden-elektronik/deCONZ
     devices:
       - /dev/ttyACM2:/dev/ttyACM0
 
@@ -80,33 +80,13 @@ services:
       - "1880:1880"
     volumes:
       # Local path where all Node-RED config will be stored.
-      - /home/pi/ha/nodered_conf:/data
+      - /home/pi/ha/nodered:/data
     depends_on:
       - homeass_main
     environment:
       TZ: "Europe/Oslo"
     user: "${LOCAL_USER}:${LOCAL_USER}"
     restart: unless-stopped
-
-  # AppDaemon
-  appdaemon:
-    container_name: appdaemon
-    restart: unless-stopped
-    image: appdaemon:latest
-    environment:
-      HA_URL: "http://${HOST_IP}:8123"
-      TOKEN: "${HA_APPDAEMON_KEY}"
-      DASH_URL: "http://${HOST_IP}:5050"
-#    ports:
-#      - "5050:5050"
-    network_mode: host
-    volumes:
-      # Set which local directory will contain all your app daemon configuration
-      - /home/pi/ha/AppDaemon_conf:/conf
-      - /etc/localtime:/etc/localtime:ro
-    depends_on:
-      - homeass_main
-    user: "${LOCAL_USER}:${LOCAL_USER}"
 
   # Other services
   mosquitto:
@@ -121,7 +101,7 @@ services:
       - "1883:1883"
       - "9001:9001"
     volumes:
-      - /home/pi/ha/mosquitto_conf:/mosquitto
+      - /home/pi/ha/mosquitto:/mosquitto
 #    networks:
 #      - default
 
@@ -131,14 +111,14 @@ services:
     ports:
       - 8081:80
     volumes:
-#      - /home/pi/ha/drupal_conf:/var/www/html
-      - /home/pi/ha/drupal_conf/modules:/var/www/html/modules
-      - /home/pi/ha/drupal_conf/profiles:/var/www/html/profiles
-      - /home/pi/ha/drupal_conf/themes:/var/www/html/themes
+#      - /home/pi/ha/drupal:/var/www/html
+      - /home/pi/ha/drupal/modules:/var/www/html/modules
+      - /home/pi/ha/drupal/profiles:/var/www/html/profiles
+      - /home/pi/ha/drupal/themes:/var/www/html/themes
 #      # this takes advantage of the feature in Docker that a new anonymous
 #      # volume (which is what we're creating here) will be initialized with the
 #      # existing content of the image at the same location
-      - /home/pi/ha/drupal_conf/sites:/var/www/html/sites
+      - /home/pi/ha/drupal/sites:/var/www/html/sites
     environment:
       - MYSQL_DATABASE=drupal
       - MYSQL_USER=homeassistant
@@ -156,8 +136,8 @@ services:
     ports:
       - "3218:3218/tcp"
     volumes:
-      - /home/pi/ha/configurator_conf:/config
-      - /home/pi/ha/hass_main_conf:/hass-config
+      - /home/pi/ha/configurator:/config
+      - /home/pi/ha/hass_main:/hass-config
       - /etc/localtime:/etc/localtime:ro
     environment:
       - BASEPATH=/hass-config
@@ -180,7 +160,7 @@ services:
 #      - 500:500
 #      - 4500:4500
 #    volumes:
-#      - /home/pi/ha/vpn_conf:/mnt
+#      - /home/pi/ha/vpn:/mnt
 #    restart: unless-stopped
 
   portainer:
@@ -192,7 +172,7 @@ services:
       - 8000:8000
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /home/pi/ha/portainer_conf:/data
+      - /home/pi/ha/portainer:/data
       
   ozwd:
     image: openzwave/ozwdaemon:latest
@@ -202,7 +182,7 @@ services:
     devices:
       - /dev/ttyACM0:/dev/ttyUSB0
     volumes:
-      - /home/pi/ha/ozw_conf:/opt/ozw/config
+      - /home/pi/ha/ozw:/opt/ozw/config
     ports:
       - "1983:1983"
     environment:
@@ -235,7 +215,7 @@ services:
       - UMASK_SET=022 #optional
       - PLEX_CLAIM= #optional
     volumes:
-      - /home/pi/ha/plex_conf:/config
+      - /home/pi/ha/plex:/config
       - /home/pi/ha/mount/tv:/tv
       - /home/pi/ha/mount/movies:/movies
     restart: unless-stopped

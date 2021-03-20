@@ -1,0 +1,303 @@
+version: '3'
+services:
+  # HomeAssistant
+  hass:
+    container_name: 
+    container_name: hass
+    image: homeassistant/home-assistant:latest
+    volumes:
+      # Local path where your home assistant config will be stored
+      - ${DOCKFIGS}/hass:/config
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKFIGS}/Z_shared:/shared
+      - /dev/serial/by-id/:/dev/serial/by-id/
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://${HOST_IP}:8123"]
+      interval: 300s
+      timeout: 10s
+      retries: 5
+    #ports:
+    # - "8123:8123"
+    cap_add:
+      - NET_ADMIN
+      - NET_BIND_SERVICE
+      - SYS_ADMIN
+    network_mode: host
+    #networks:
+    #  - traefik-proxy
+    privileged: true
+    depends_on:
+      # MariaDB is optional (only if you would like to use a different database for HA).
+      - mariadb
+      # Deconz is optional (only if you use the deconz Zigbee hub).
+      - deconz
+#    user: "${LOCAL_USER}:${LOCAL_USER}"
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+
+  # MariaDb
+  mariadb:
+    image: mariadb
+    container_name: mariadb
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_DATABASE: ha
+      MYSQL_USER: homeassistant
+      MYSQL_PASSWORD: "${HA_MYSQL_PASSWORD}"
+    user: "${LOCAL_USER}:${LOCAL_USER}"
+    volumes:
+      # Local path where the database will be stored.
+      - ${DOCKFIGS}/mariadb/data:/var/lib/mysql
+      - ${DOCKFIGS}/mariadb/conf:/etc/mysql/conf.d
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKFIGS}/mariadb/bak:/var/lib/backup
+    network_mode: host
+    #ports:
+    # - "3306:3306"
+
+  # Deconz
+  deconz:
+    container_name: deconz
+    image: marthoc/deconz:latest
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      # You can access Deconz at this port
+      DECONZ_WEB_PORT: 8080
+      DECONZ_WS_PORT: 8088
+      # Set VNC_MODE to 0 to disable it completely
+      DECONZ_VNC_MODE: 8
+      DECONZ_VNC_PORT: 5908
+      DECONZ_UPNP: 0
+      DECONZ_VNC_PASSWORD: "${VNC_PASSWORD}"
+      DEBUG_INFO: 1
+      UDEV: 1
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      # Replace <local path> with a path where all deconz config will be stored.
+      - ${DOCKFIGS}/deconz:/root/.local/share/dresden-elektronik/deCONZ
+      - ${DOCKFIGS}/deconz_otau:/root/otau
+    devices:
+      - /dev/ttyUSB.SIG:/dev/ttyACM0 #configured to a static tty
+
+# Node-RED
+  nodered:
+    container_name: nodered
+    image: nodered/node-red
+    ports:
+      - "1880:1880"
+    volumes:
+      # Local path where all Node-RED config will be stored.
+      - ${DOCKFIGS}/nodered:/data
+    depends_on:
+      - hass
+    environment:
+      TZ: ${TZ}
+    user: "${LOCAL_USER}:${LOCAL_USER}"
+    restart: unless-stopped
+
+
+  # Other services
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    #hostname: mosquitto
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ${DOCKFIGS}/mosquitto:/mosquitto
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      TZ: ${TZ}
+
+  configurator:
+    container_name: configurator
+    image: causticlab/hass-configurator-docker:x86_64
+    restart: unless-stopped
+    ports:
+      - "3218:3218/tcp"
+    volumes:
+      - ${DOCKFIGS}/configurator:/config
+      - ${DOCKFIGS}/hass:/hass-config
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - BASEPATH=/hass-config
+      - ENFORCE_BASEPATH=true
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+
+  portainer:
+    container_name: portainer
+    image: portainer/portainer
+    command: -H unix:///var/run/docker.sock
+    restart: unless-stopped
+# Ports are not forwarded so that the only access point is through traefik and the traefik-proxy network
+#    ports:
+#      - 9000:9000
+#      - 8000:8000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKFIGS}/portainer:/data
+    networks:
+      - traefik-proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+      - "traefik.http.services.portainer2.loadbalancer.server.port=8000"
+      
+  ozwd:
+    image: openzwave/ozwdaemon:latest
+    container_name: "ozwd"
+    security_opt:
+      - seccomp:unconfined
+    devices:
+      - /dev/ttyUSB.ZWAV:/dev/ttyUSB0
+    volumes:
+      - ${DOCKFIGS}/ozw:/opt/ozw/config
+    ports:
+      - "1983:1983"
+      - "5902:5901"
+      - "7802:7800"
+    environment:
+      MQTT_SERVER: "${HOST_IP}"
+      MQTT_USERNAME: ""
+      MQTT_PASSWORD: ""
+      USB_PATH: "/dev/ttyUSB0"
+      OZW_NETWORK_KEY: "0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00"
+    restart: unless-stopped
+
+  plex:
+    image: linuxserver/plex
+    container_name: plex
+    #network_mode: host
+    ports:
+      - "32400:32400"
+      - "1900:1900"
+      - "3005:3005"
+      - "5353:5353"
+      - "8324:8324"
+      - "32410:32410"
+      - "32412:32412"
+      - "32413:32413"
+      - "32414:32414"
+      - "32469:32469"
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - VERSION=docker
+      - UMASK_SET=022 #optional
+      - PLEX_CLAIM= ${PLEX_CLAIM}
+    volumes:
+      - ${DOCKFIGS}/plex:/config
+      - ${DOCKFIGS}/mount/tv:/tv
+      - ${DOCKFIGS}/mount/movies:/movies
+    restart: unless-stopped
+    
+  code:
+    image: linuxserver/code-server
+    container_name: "code"
+    volumes:
+      - ${DOCKFIGS}/vscode:/config
+      - ${DOCKFIGS}/hass:/config/workspace
+    ports:
+      - "8443:8443"
+    environment:
+      TZ: ${TZ}
+      PASSWORD: ${VSCODE_PASSWORD}
+      SUDO_PASSWORD: ${VSCODE_PASSWORD}
+    restart: unless-stopped
+    
+  esphome:
+    image: esphome/esphome
+    container_name: "esphome"
+    volumes:
+      - ${DOCKFIGS}/esphome:/config:rw
+      # Use local time for logging timestamps
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "6052:6052"
+      - "5354:5353"
+    restart: unless-stopped
+    
+  wordpress:
+    image: wordpress
+    container_name: wordpress
+    restart: unless-stopped
+    privileged: true
+    links:
+     - mariadb:mysql
+    ports:
+      - 8082:80
+    environment:
+      WORDPRESS_DB_HOST: ${HOST_IP}:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - ${DOCKFIGS}/wordpress:/var/www/html
+    networks:
+    - shared
+    depends_on: 
+    - mariadb
+    
+  traefik:
+    container_name: traefik
+    image: traefik:latest
+    domainname: ${DOMAIN}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - DUCKDNS_TOKEN=${DUCKDNS_TOKEN}
+      - TZ=${TZ}
+    ports:
+      - 80:80
+      - 8081:8080
+      - 443:443
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${DOCKFIGS}/traefik:/etc/traefik
+      - ${DOCKFIGS}/shared:/shared
+    #labels:
+#      - traefik.enable=true
+#      - traefik.backend=traefik
+#      - traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN}`)
+#      - traefik.http.routers.traefik.tls=true
+#      - traefik.http.routers.traefik.tls.certresolver=lencrypt
+#      - traefik.http.services.traefik.loadbalancer.server.port=8080
+    networks:
+      - traefik-proxy
+      
+  ssh:
+    container_name: ssh
+    image: spali/shellinabox
+    #disable port forwarding to only allow access through traefik and ssl
+#    ports:
+#      - 4200:4200
+    environment:
+      SHELLINABOX_SERVICE_HOST: '${HOST_IP}'
+      SHELLINABOX_DEFAULT: '${HOST_IP}'
+      SHELLINABOX_DISABLE_SSL: 1
+      SHELLINABOX_SERVICE_LOCAL: local
+      SHELLINABOX_ALLOW_SUDO: 1
+    networks:
+      - traefik-proxy
+    labels: #expose the ssh terminal as a traefik service
+      - "traefik.enable=true"
+      - "traefik.http.services.ssh.loadbalancer.server.port=4200"
+    
+networks:
+  shared: 
+    external:
+      name: shared
+  traefik-proxy:
+    external: true
